@@ -68,3 +68,7 @@ Merge the viztracer and perf/per4m results into a single html file.
 Identify the problem (GIL visible, possible low instruction counts/cycle):
 
 
+![image](https://user-images.githubusercontent.com/1765949/102130936-c4cd6400-3e51-11eb-9ded-7b9bd77a09db.png)
+
+The purple 'S' blocks indicate the threads/processes are in a waiting state, this is clearly the GIL at work, which is switching after [`sys.getswitchinterval`](https://docs.python.org/3/library/sys.html#sys.getswitchinterval) (0.005 seconds)
+
