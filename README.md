@@ -53,7 +53,7 @@ Report saved.
 ## Step 3
 Convert `perf.data` to [Trace Event Format](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/)
 
-    $ perf script --no-inline | per4m --no-running -o example1perf.json
+    $ perf script --no-inline | per4m perf2trace --no-running -o example1perf.json
 
 
 ## Step 4
