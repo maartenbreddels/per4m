@@ -3,9 +3,26 @@
 This project aims to (at least demonstrate) how to combine the Linux perf tool (aka perf_events) with [viztracer](https://github.com/gaogaotiantian/viztracer) to visualize the GIL (rather process states) and various profiling statistics, or hardware performance counters.
 
 # Installation
+## Python side
 From PyPy
 
     $ pip install per4m
+
+
+## Linux side
+
+Install perf
+
+    $ sudo yum install perf
+
+Enable users to run perf (use at own risk)
+
+    $ sudo sysctl kernel.perf_event_paranoid=-1
+
+Enable users to see schedule trace events:
+
+    $ sudo mount -o remount,mode=755 /sys/kernel/debug
+    $ sudo mount -o remount,mode=755 /sys/kernel/debug/tracing
 
 # Usage
 
