@@ -18,6 +18,57 @@ Open the result.html, and identify the problem (GIL visible, possible low instru
 
 
 The dark red `S(GIL)` blocks indicate the threads/processes are in a waiting state due to the GIL, dark orange `S` is a due to other reasons (like `time.sleep(...)`). The regular pattern is due to Python switching threads after [`sys.getswitchinterval`](https://docs.python.org/3/library/sys.html#sys.getswitchinterval) (0.005 seconds)
+
+# Usage - Jupyter notebook
+
+First, load the magics
+```
+%load_ext per4m.cellmagic
+```
+
+Run a cell with the `%%giltrace` cell magic.
+```
+%%giltrace
+import threading
+import time
+import time
+
+
+def run():
+    total = 0
+    for i in range(1_000_000):
+        total += i
+    return total
+
+
+thread1 = threading.Thread(target=run)
+thread2 = threading.Thread(target=run)
+thread1.start()
+thread2.start()
+time.sleep(0.2)
+for thread in [thread1, thread2]:
+    thread.join()
+```
+Output:
+```
+Saving report to /tmp/tmp2rwf1xq3/viztracer.json ...
+Dumping trace data to json, total entries: 89, estimated json file size: 10.4KiB
+Report saved.
+
+[ perf record: Woken up 8 times to write data ]
+[ perf record: Captured and wrote 2,752 MB /tmp/tmp2rwf1xq3/perf.data (415 samples) ]
+
+Wait for perf to finish...
+Saving report to /home/maartenbreddels/github/maartenbreddels/per4m/result.html ...
+Dumping trace data to json, total entries: 167, estimated json file size: 19.6KiB
+Generating HTML report
+Report saved.
+Download result.html
+Open result.html in new tab (might not work due to security issue)
+```
+
+Click the download link to get the results.
+
 # Usage - manual
 
 ## Step 1
