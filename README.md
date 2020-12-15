@@ -68,7 +68,8 @@ Merge the viztracer and perf/per4m results into a single html file.
 Identify the problem (GIL visible, possible low instruction counts/cycle):
 
 
-![image](https://user-images.githubusercontent.com/1765949/102130936-c4cd6400-3e51-11eb-9ded-7b9bd77a09db.png)
+![image](https://user-images.githubusercontent.com/1765949/102187104-db0c0c00-3eb3-11eb-93ef-e6d938d9e349.png)
 
-The purple 'S' blocks indicate the threads/processes are in a waiting state, this is clearly the GIL at work, which is switching after [`sys.getswitchinterval`](https://docs.python.org/3/library/sys.html#sys.getswitchinterval) (0.005 seconds)
+
+The dark red `S(GIL)` blocks indicate the threads/processes are in a waiting state due to the GIL, dark orange `S` is a due to other reasons (like `time.sleep(...)`). The regular pattern is due to Python switching threads after [`sys.getswitchinterval`](https://docs.python.org/3/library/sys.html#sys.getswitchinterval) (0.005 seconds)
 

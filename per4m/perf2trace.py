@@ -164,9 +164,11 @@ def main(argv=sys.argv):
                     dur = time  - last_sleep_time[pid]
                     if takes_gil(last_sleep_stacktrace[pid]):
                         name = 'S(GIL)'
+                        cname = 'terrible'
                     else:
                         name = 'S'
-                    event = {"pid": parent_pid.get(pid, pid), "tid": pid, "ts": last_sleep_time[pid], "dur": dur, "name": name, "ph": "X", "cat": "process state"}
+                        cname = 'bad'
+                    event = {"pid": parent_pid.get(pid, pid), "tid": pid, "ts": last_sleep_time[pid], "dur": dur, "name": name, "ph": "X", "cat": "process state", 'cname': cname}
                     trace_events.append(event)
                 last_run_time[pid] = time
                 del last_sleep_time[pid]
