@@ -7,7 +7,18 @@ From PyPy
 
     $ pip install per4m
 
-# Demo
+# Usage
+
+    $ per4m giltracer -m per4m.example2
+
+Open the result.html, and identify the problem (GIL visible, possible low instruction counts/cycle):
+
+
+![image](https://user-images.githubusercontent.com/1765949/102187104-db0c0c00-3eb3-11eb-93ef-e6d938d9e349.png)
+
+
+The dark red `S(GIL)` blocks indicate the threads/processes are in a waiting state due to the GIL, dark orange `S` is a due to other reasons (like `time.sleep(...)`). The regular pattern is due to Python switching threads after [`sys.getswitchinterval`](https://docs.python.org/3/library/sys.html#sys.getswitchinterval) (0.005 seconds)
+# Usage - manual
 
 ## Step 1
 Create a script that uses viztracer to store trace information:
@@ -63,13 +74,4 @@ Merge the viztracer and perf/per4m results into a single html file.
     $ viztracer --combine example1.json example1perf.json -o example1.html
 
 
-## Step 5
-
-Identify the problem (GIL visible, possible low instruction counts/cycle):
-
-
-![image](https://user-images.githubusercontent.com/1765949/102187104-db0c0c00-3eb3-11eb-93ef-e6d938d9e349.png)
-
-
-The dark red `S(GIL)` blocks indicate the threads/processes are in a waiting state due to the GIL, dark orange `S` is a due to other reasons (like `time.sleep(...)`). The regular pattern is due to Python switching threads after [`sys.getswitchinterval`](https://docs.python.org/3/library/sys.html#sys.getswitchinterval) (0.005 seconds)
 

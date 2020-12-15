@@ -63,7 +63,8 @@ def main(argv=sys.argv):
     parser = argparse.ArgumentParser(argv[0],
         formatter_class=argparse.RawDescriptionHelpFormatter,
         usage=usage)
-    parser.add_argument('--verbose', '-v', action='count', default=0)
+    parser.add_argument('--verbose', '-v', action='count', default=1)
+    parser.add_argument('--quiet', '-q', action='count', default=0)
     parser.add_argument('--sleeping', help="store sleeping phase (default: %(default)s)", default=True, action='store_true')
     parser.add_argument('--no-sleeping', dest="sleeping", action='store_false')
     parser.add_argument('--running', help="show running phase (default: %(default)s)", default=False, action='store_true')
@@ -84,7 +85,7 @@ def main(argv=sys.argv):
     last_run_time = {}
     last_sleep_time = {}
     last_sleep_stacktrace = {}
-    verbose = args.verbose
+    verbose = args.verbose - args.quiet
     time_first = None
     store_runing = args.running
     store_sleeping = args.sleeping
@@ -132,7 +133,7 @@ def main(argv=sys.argv):
                     # raise ValueError(f'pid {pid} not seen running before, only {last_run_time}')
                     continue
                 dur = time  - last_run_time[pid]
-                if verbose:
+                if verbose >= 2:
                     log(f'{name} will switch to state={values["prev_state"]}, ran for {dur}')
                 if store_runing:
                     event = {"pid": parent_pid.get(pid, pid), "tid": pid, "ts": last_run_time[pid], "dur": dur, "name": 'R', "ph": "X", "cat": "process state"}
@@ -157,7 +158,7 @@ def main(argv=sys.argv):
                     # q
                     last_run_time[pid] = time
                     continue
-                if verbose:
+                if verbose >= 2:
                     name = pid_names.get(pid, pid)
                     log(f'Waking up {name}')
                 if store_sleeping:
@@ -173,14 +174,14 @@ def main(argv=sys.argv):
                 last_run_time[pid] = time
                 del last_sleep_time[pid]
             elif event == "sched:sched_process_exec":
-                if verbose:
+                if verbose >= 2:
                     name = pid_names.get(triggerpid, triggerpid)
                     log(f'Starting (exec) {name}')
             elif event == "sched:sched_wakeup_new":
                 # e.g: swapper     0 [040] 3498299.642199:                sched:sched_waking: comm=python pid=393320 prio=120 target_cpu=040
                 values = parse_values(parts, pid=int)
                 pid = values['pid']
-                if verbose:
+                if verbose >= 2:
                     name = pid_names.get(pid, pid)
                     log(f'Starting (new) {name}')
                 last_run_time[pid] = time
@@ -188,7 +189,7 @@ def main(argv=sys.argv):
                 values = parse_values(parts, pid=int, child_pid=int)
                 # set up a child parent relationship for better visualization
                 pid, child_pid = values['pid'], values['child_pid']
-                if verbose:
+                if verbose >= 2:
                     log(f'Process {pid} forked {child_pid}')
                 parent_pid[child_pid] = pid
             elif not tracepoint:
@@ -206,7 +207,8 @@ def main(argv=sys.argv):
             
     with open(args.output, 'w') as f:
         json.dump({'traceEvents': trace_events}, f)
-    print(f"Wrote to {args.output}")
+    if verbose >= 1:
+        print(f"Wrote to {args.output}")
 
 
 if __name__ == '__main__':

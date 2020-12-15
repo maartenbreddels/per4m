@@ -8,7 +8,7 @@ optional arguments:
 
 positional arguments:
     perf2trace          convert perf.data to TraceEvent json data
-    ...                 anything else will start up the gui, see usage below
+    giltracer           Run VizTracer and perf, and merge the result to see where the GIL is active.
 
 Examples:
 $ perf script --no-inline | per4m -v
@@ -22,6 +22,9 @@ def main(args=sys.argv):
         sys.exit(0)
     elif len(args) > 1 and args[1] == "perf2trace":
         from .perf2trace import main
+        main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+    elif len(args) > 1 and args[1] == "giltracer":
+        from .giltracer import main
         main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
     else:
         print(usage)
