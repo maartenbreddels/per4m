@@ -118,10 +118,17 @@ def main(argv=sys.argv):
             gil_event = None
             if event == "sched:sched_switch":
                 # e.g. python 393320 [040] 3498299.441431:                sched:sched_switch: prev_comm=python prev_pid=393320 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
-                values = parse_values(parts, prev_pid=int)
+                try:
+                    values = parse_values(parts, prev_pid=int)
+                    pid = values['prev_pid']
+                    prev_state = values['prev_state']
+                except ValueError:
+                    # perf 4
+                    comm, pid = other[0].rsplit(':', 1)
+                    pid = int(pid)
+                    prev_state = other[2]
                 # we are going to sleep?
-                pid = values['prev_pid']
-                if values['prev_state'] == 'R':
+                if prev_state == 'R':
                     # this happens when a process just started, so we just set the start time
                     last_sleep_time[pid] = time
                     continue
@@ -134,7 +141,7 @@ def main(argv=sys.argv):
                     continue
                 dur = time  - last_run_time[pid]
                 if verbose >= 2:
-                    log(f'{name} will switch to state={values["prev_state"]}, ran for {dur}')
+                    log(f'{name} will switch to state={prev_state}, ran for {dur}')
                 if store_runing:
                     event = {"pid": parent_pid.get(pid, pid), "tid": pid, "ts": last_run_time[pid], "dur": dur, "name": 'R', "ph": "X", "cat": "process state"}
                     trace_events.append(event)
@@ -145,9 +152,15 @@ def main(argv=sys.argv):
             elif event == "sched:sched_wakeup":
                 # e.g: swapper     0 [040] 3498299.642199:                sched:sched_waking: comm=python pid=393320 prio=120 target_cpu=040
                 prev_state = None
-                values = parse_values(parts, pid=int)
-                pid = values['pid']
-                comm = values['comm']
+                try:
+                    values = parse_values(parts, pid=int)
+                    pid = values['pid']
+                    comm = values['comm']
+                except ValueError:
+                    # perf 4
+                    comm, pid = other[0].rsplit(':', 1)
+                    pid = int(pid)
+
                 # if comm != "python":
                 #     if verbose >= 2:
                 #         log(f'Skip waking event for {comm}')
@@ -158,18 +171,21 @@ def main(argv=sys.argv):
                     # q
                     last_run_time[pid] = time
                     continue
+                recover_from_gil = takes_gil(last_sleep_stacktrace[pid])
+                duration = time  - last_sleep_time[pid]
                 if verbose >= 2:
                     name = pid_names.get(pid, pid)
-                    log(f'Waking up {name}')
+                    log(f'Waking up {name}', '(recovering from GIL)' if recover_from_gil else '', f', slept for {duration} msec')
+                if verbose >= 3:
+                    print("Stack trace when we went to sleep:\n\t", "\t".join(last_sleep_stacktrace[pid]))
                 if store_sleeping:
-                    dur = time  - last_sleep_time[pid]
-                    if takes_gil(last_sleep_stacktrace[pid]):
+                    if recover_from_gil:
                         name = 'S(GIL)'
                         cname = 'terrible'
                     else:
                         name = 'S'
                         cname = 'bad'
-                    event = {"pid": parent_pid.get(pid, pid), "tid": pid, "ts": last_sleep_time[pid], "dur": dur, "name": name, "ph": "X", "cat": "process state", 'cname': cname}
+                    event = {"pid": parent_pid.get(pid, pid), "tid": pid, "ts": last_sleep_time[pid], "dur": duration, "name": name, "ph": "X", "cat": "process state", 'cname': cname}
                     trace_events.append(event)
                 last_run_time[pid] = time
                 del last_sleep_time[pid]
@@ -179,8 +195,13 @@ def main(argv=sys.argv):
                     log(f'Starting (exec) {name}')
             elif event == "sched:sched_wakeup_new":
                 # e.g: swapper     0 [040] 3498299.642199:                sched:sched_waking: comm=python pid=393320 prio=120 target_cpu=040
-                values = parse_values(parts, pid=int)
-                pid = values['pid']
+                try:
+                    values = parse_values(parts, pid=int)
+                    pid = values['pid']
+                except ValueError:
+                    # perf 4
+                    comm, pid = other[0].rsplit(':', 1)
+                    pid = int(pid)
                 if verbose >= 2:
                     name = pid_names.get(pid, pid)
                     log(f'Starting (new) {name}')
@@ -202,7 +223,7 @@ def main(argv=sys.argv):
         except BrokenPipeError:
             break
         except:
-            print("error on line", header)
+            print("error on line", header, other)
             raise
             
     with open(args.output, 'w') as f:
