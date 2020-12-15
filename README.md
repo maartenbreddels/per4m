@@ -126,3 +126,25 @@ Merge the viztracer and perf/per4m results into a single html file.
 
 
 
+## GIL load vs GIL wait
+
+Even though a thread may have a lock on the GIL, if other don't need it, it's fine. For instance, using [gil_load](https://github.com/chrisjbillington/gil_load):
+```
+$ python -m gil_load per4m/example3.py
+eld: 1.0 (1.0, 1.0, 1.0)
+wait: 0.083 (0.083, 0.083, 0.083)
+  <139967101757248>
+    held: 1.0 (1.0, 1.0, 1.0)
+    wait: 0.0 (0.0, 0.0, 0.0)
+  <139957774272256>
+    held: 0.0 (0.0, 0.0, 0.0)
+    wait: 0.083 (0.083, 0.083, 0.083)
+  <139957765879552>
+    held: 0.0 (0.0, 0.0, 0.0)
+    wait: 0.083 (0.083, 0.083, 0.083)
+```
+Show one thread that has a high GIL load, but it does not keep the others from running (except 8% of the time), i.e. wait is low (see [example3.py](https://github.com/maartenbreddels/per4m/blob/master/per4m/example3.py)). We can visualize this using `giltracer` (not that we import numpy and some other modules before tracing to avoid clutter)
+
+    $ per4m giltracer --import="numpy,threading,time,gil_load" -m per4m.example3
+
+![image](https://user-images.githubusercontent.com/1765949/102223915-96996400-3ee5-11eb-9e2e-46ac6fd5c5e3.png)
