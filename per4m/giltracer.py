@@ -93,12 +93,19 @@ def main(argv=sys.argv):
         formatter_class=argparse.RawDescriptionHelpFormatter,
         usage=usage)
     parser.add_argument('--module', '-m')
+    parser.add_argument('--import', dest="import_", help="Comma seperated list of modules to import before tracing (cleans up tracing output)")
     parser.add_argument('--verbose', '-v', action='count', default=1)
     parser.add_argument('--quiet', '-q', action='count', default=0)
     parser.add_argument('--output', '-o', dest="output", default='result.html', help="Output filename (default %(default)s)")
     parser.add_argument('args', nargs=argparse.REMAINDER)
     args = parser.parse_args(argv[1:])
     verbose = args.verbose - args.quiet
+
+    if args.import_:
+        for module in args.import_.split(','):
+            if verbose >= 2:
+                print(f'importing {module}')
+                __import__(module)
 
     with GilTracer(verbose=verbose) as gt:
         with viztracer.VizTracer(output_file="viztracer.json", verbose=verbose):
