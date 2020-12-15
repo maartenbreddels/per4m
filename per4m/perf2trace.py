@@ -66,7 +66,7 @@ def main(argv=sys.argv):
     parser.add_argument('--verbose', '-v', action='count', default=0)
     parser.add_argument('--sleeping', help="store sleeping phase (default: %(default)s)", default=True, action='store_true')
     parser.add_argument('--no-sleeping', dest="sleeping", action='store_false')
-    parser.add_argument('--running', help="show running phase (default: %(default)s)", default=True, action='store_true')
+    parser.add_argument('--running', help="show running phase (default: %(default)s)", default=False, action='store_true')
     parser.add_argument('--no-running', dest="running", action='store_false')
     parser.add_argument('--all-tracepoints', help="store all tracepoints phase (default: %(default)s)", default=False, action='store_true')
 
