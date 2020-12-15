@@ -83,6 +83,7 @@ def main(argv=sys.argv):
     # a bit pendantic to keep these separated
     last_run_time = {}
     last_sleep_time = {}
+    last_sleep_stacktrace = {}
     verbose = args.verbose
     time_first = None
     store_runing = args.running
@@ -138,6 +139,7 @@ def main(argv=sys.argv):
                     trace_events.append(event)
 
                 last_sleep_time[pid] = time
+                last_sleep_stacktrace[pid] = stacktrace
                 del last_run_time[pid]
             elif event == "sched:sched_wakeup":
                 # e.g: swapper     0 [040] 3498299.642199:                sched:sched_waking: comm=python pid=393320 prio=120 target_cpu=040
@@ -160,7 +162,11 @@ def main(argv=sys.argv):
                     log(f'Waking up {name}')
                 if store_sleeping:
                     dur = time  - last_sleep_time[pid]
-                    event = {"pid": parent_pid.get(pid, pid), "tid": pid, "ts": last_sleep_time[pid], "dur": dur, "name": f"S", "ph": "X", "cat": "process state"} #3579742.654826
+                    if takes_gil(last_sleep_stacktrace[pid]):
+                        name = 'S(GIL)'
+                    else:
+                        name = 'S'
+                    event = {"pid": parent_pid.get(pid, pid), "tid": pid, "ts": last_sleep_time[pid], "dur": dur, "name": name, "ph": "X", "cat": "process state"}
                     trace_events.append(event)
                 last_run_time[pid] = time
                 del last_sleep_time[pid]
