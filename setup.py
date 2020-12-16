@@ -16,6 +16,11 @@ setup(
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     entry_points={
-        'console_scripts': ['per4m = per4m.__main__:main']
+        'console_scripts': [
+            'per4m = per4m.__main__:main',
+            'giltracer = per4m.giltracer:main',
+            'perf-pyrecord = per4m.record:main',
+            'perf-pyscript = per4m.script:main',
+        ]
     }
 )

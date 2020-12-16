@@ -1,25 +1,7 @@
 import sys
 import json
 import argparse
-
-
-def read_events(input):
-    first_line = True
-    stacktrace = []
-    header = None
-    for line in sys.stdin:
-        line = line.strip()
-        if first_line:
-            header = line
-            stacktrace = []
-            first_line = False
-        else:
-            if not line:  # done
-                yield header, stacktrace
-                first_line = True
-                continue
-            stacktrace.append(line)
-
+from .perfutils import read_events
 
 def parse_values(parts, **types):
     values = {}
@@ -48,7 +30,7 @@ def drops_gil(stacktrace):
 
 usage = """
 
-Convert perf.data to Trace Event Format.
+Convert perf.data to TraceEvent JSON data.
 
 Usage:
 
