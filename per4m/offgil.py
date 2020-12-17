@@ -19,7 +19,10 @@ Take stacktraces from VizTracer, and inject them in perf script output and print
 
 Usage:
 
-$ giltracer -m per4m.example3
+# for this we need the process states, and we can skip the GIL detection for performance
+$ giltracer --no-gil-detect --state-detect -m per4m.example3
+
+# offgil will use perf-sched.data
 $ offgil | ~/github/FlameGraph/stackcollapse.pl | ~/github/FlameGraph/flamegraph.pl --countname=us --title="Off-GIL Time Flame Graph" --colors=python > offgil.svg
 """
 
@@ -39,7 +42,8 @@ def main(argv=sys.argv):
     parser.add_argument('--no-allow-mismatch', dest="allow_mismatch", action='store_false')
     parser.add_argument('--pedantic', help="If false, accept known stack mismatch issues (default: %(default)s)", default=False, action='store_true')
     parser.add_argument('--no-pedantic', dest="pedantic", action='store_false')
-    parser.add_argument('--input', '-i', help="VizTracer input (default %(default)s)", default="viztracer.json")
+    parser.add_argument('--input-perf', help="Perf input (default %(default)s)", default="perf-sched.data")
+    parser.add_argument('--input-viztracer', help="VizTracer input (default %(default)s)", default="viztracer.json")
     parser.add_argument('--output', '-o', dest="output", default=None, help="Output filename (default %(default)s)")
     
 
@@ -48,7 +52,7 @@ def main(argv=sys.argv):
 
     perf_script_args = ['--no-inline']
     perf_script_args = ' '.join(perf_script_args)
-    cmd = f"perf script {perf_script_args}"
+    cmd = f"perf script {perf_script_args} -i {args.input_perf}"
     if verbose >= 2:
         print(f"Running: {cmd}")
     perf_args = shlex.split(cmd)
@@ -61,14 +65,14 @@ def main(argv=sys.argv):
     
     if verbose >= 1:
         print_stderr("Loading snapshot")
-    with open(args.input, "r") as f:
+    with open(args.input_viztracer, "r") as f:
         json_data = f.read()
     snap = ProgSnapshot(json_data)
     # find all pids (or tids)
     pids = list(snap.func_trees)
     for pid in pids.copy():
         pids.extend(list(snap.func_trees[pid]))
-    t0 = min(event['ts'] for event in json.loads(json_data)['traceEvents'])
+    t0 = min(event['ts'] for event in json.loads(json_data)['traceEvents'] if 'ts' in event)
     
     for header, stacktrace, event in perf2trace(perf.stdout, verbose):
         if event['name'] == args.state:

@@ -28,15 +28,17 @@ if use_gil_load:
 
 thread1 = threading.Thread(target=run)
 thread2 = threading.Thread(target=run)
-thread1.start()
-thread2.start()
-total = 0
-for i in range(1_000_000):
-    total += i
-for thread in [thread1, thread2]:
-    thread.join()
 
-if use_gil_load:
-    gil_load.stop()
-    stats = gil_load.get()
-    print(gil_load.format(stats))
+def main(args=None):
+    thread1.start()
+    thread2.start()
+    total = 0
+    for i in range(1_000_000):
+        total += i
+    for thread in [thread1, thread2]:
+        thread.join()
+
+    if use_gil_load:
+        gil_load.stop()
+        stats = gil_load.get()
+        print(gil_load.format(stats))

@@ -25,16 +25,23 @@ $ perf-pyrecord -e cycles -m per4m.example2
 """
 
 class PerfRecord:
-    def __init__(self, output='perf.data', args=[], verbose=1):
+    def __init__(self, output='perf.data', args=[], verbose=1, stacktrace=True, buffer_size="128M"):
         self.output = output
+        self.buffer_size = buffer_size
         self.args = args
+        self.stacktrace = stacktrace
         self.verbose = verbose
 
     def __enter__(self):
+        self.start()
+
+    def start(self):
         pid = os.getpid()
         # cmd = f"perf record -e 'sched:*' --call-graph dwarf -k CLOCK_MONOTONIC --pid {pid} -o {self.output}"
         perf_args = ' '.join(self.args)
-        cmd = f"perf record {perf_args} --call-graph dwarf -k CLOCK_MONOTONIC --pid {pid} -o {self.output}"
+        if self.stacktrace:
+            perf_args += " --call-graph dwarf"
+        cmd = f"perf record  {perf_args} -k CLOCK_MONOTONIC --pid {pid} -o {self.output}"
         if self.verbose >= 2:
             print(f"Running: {cmd}")
         args = shlex.split(cmd)
@@ -48,7 +55,7 @@ class PerfRecord:
             # we need to wait till perf creates the file
             time.sleep(0.1)
         else:
-            self.finish()
+            self._finish()
             raise OSError(f'perf did not create {self.output}')
         start_size = os.path.getsize(self.output)
         for _ in range(RETRIES):
@@ -58,13 +65,13 @@ class PerfRecord:
             # we need to wait till perf writes
             time.sleep(0.1)
         else:
-            self.finish()
+            self._finish()
             raise OSError(f'perf did not write to {self.output}')
         # and give perf a bit more time
         time.sleep(0.05)
         return self
 
-    def finish(self):
+    def _finish(self):
         self.perf.terminate()
         outs, errs = self.perf.communicate(timeout=5)
         if self.verbose >= 1:
@@ -77,7 +84,10 @@ class PerfRecord:
             raise OSError(f'perf record fails, got exit code {self.perf.returncode}')
 
     def __exit__(self, *args):
-        self.finish()
+        self.stop()
+
+    def stop(self):
+        self._finish()
         if self.verbose >= 1:
             print('Wait for perf to finish...')
         self.perf.wait()

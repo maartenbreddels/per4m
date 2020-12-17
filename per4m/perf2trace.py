@@ -1,6 +1,12 @@
-import sys
-import json
 import argparse
+import argparse
+from collections import defaultdict
+import json
+import re
+import sys
+
+import tabulate
+
 from .perfutils import read_events
 
 def parse_values(parts, **types):
@@ -32,13 +38,22 @@ usage = """
 
 Convert perf.data to TraceEvent JSON data.
 
-Usage:
+Usage for scheduling data:
 
 Always run perf with -e 'sched:*' --call-graph dwarf -k CLOCK_MONOTONIC, the rest of the events are extra
 $ perf record -e 'sched:*' --call-graph dwarf -k CLOCK_MONOTONIC -e L1-dcache-load-misses -e instructions -e cycles -e page-faults -- python -m per4m.example1 
 Run with --no-online, otherwise it may run slow
-$ perf script --no-inline | per4m perf2trace --no-running -o example1perf.json
-$ viztracer --combine example1.json example1perf.json -o example1.html
+$ perf script --no-inline | per4m perf2trace sched --no-running -o example1sched.json
+$ viztracer --combine example1sched.json example1perf.json -o example1.html
+
+Usage for GIL:
+
+(read the docs to install the GIL uprobes)
+$ perf record -e 'python:*gil*' -k CLOCK_MONOTONIC -- python -m per4m.example1
+$ perf script --ns --no-inline | per4m perf2trace gil -o example1gil.json
+$ viztracer --combine example1.json example1gil.json -o example1.html
+
+
 """
 
 def main(argv=sys.argv):
@@ -51,9 +66,16 @@ def main(argv=sys.argv):
     parser.add_argument('--no-sleeping', dest="sleeping", action='store_false')
     parser.add_argument('--running', help="show running phase (default: %(default)s)", default=False, action='store_true')
     parser.add_argument('--no-running', dest="running", action='store_false')
+    parser.add_argument('--as-async', help="show as async (above the events) (default: %(default)s)", default=True, action='store_true')
+    parser.add_argument('--no-as-async', dest="as_async", action='store_false')
+    parser.add_argument('--only-lock', help="show only when we have the GIL (default: %(default)s)", default=False, action='store_true')
+    parser.add_argument('--no-only-lock', dest="as_async", action='store_false')
     parser.add_argument('--all-tracepoints', help="store all tracepoints phase (default: %(default)s)", default=False, action='store_true')
 
+    # parser.add_argument('--input', '-i', help="Optional VizTracer input for filtering and gil load calculations")
+
     parser.add_argument('--output', '-o', dest="output", default='perf.json', help="Output filename (default %(default)s)")
+    parser.add_argument("type", help="Type of conversion to do", choices=['sched', 'gil'])
 
 
     args = parser.parse_args(argv[1:])
@@ -62,12 +84,182 @@ def main(argv=sys.argv):
     store_sleeping = args.sleeping
 
     trace_events = []
-    for header, tb, event in perf2trace(sys.stdin, verbose=verbose, store_runing=store_runing, store_sleeping=store_sleeping, all_tracepoints=args.all_tracepoints):
-        trace_events.append(event)
+    if args.type == "sched":
+        for header, tb, event in perf2trace(sys.stdin, verbose=verbose, store_runing=store_runing, store_sleeping=store_sleeping, all_tracepoints=args.all_tracepoints):
+            trace_events.append(event)
+    elif args.type == "gil":
+        # we don't use this any more, lets keep it to maybe pull out thread information
+        # if args.input:
+        #     with open(args.input) as f:
+        #         input_events = json.load(f)['traceEvents']
+        #     for event in input_events:
+        #         if 'ts' in event:
+        #             ts = event['ts']
+        #             pid = int(event['tid'])
+        #             t_min[pid] = min(t_min.get(pid, ts), ts)
+        #             t_max[pid] = max(t_max.get(pid, ts), ts)
+
+        for header, event in gil2trace(sys.stdin, verbose=verbose, as_async=args.as_async, only_lock=args.only_lock):
+            if verbose >= 3:
+                print(event)
+            trace_events.append(event)
+    else:
+        raise ValueError(f'Unknown type {args.type}')
     with open(args.output, 'w') as f:
         json.dump({'traceEvents': trace_events}, f)
     if verbose >= 1:
         print(f"Wrote to {args.output}")
+
+
+def gil2trace(input, verbose=1, take_probe="python:take_gil(_\d)?$", take_probe_return="python:take_gil__return", drop_probe="python:drop_gil(_\d)?$", drop_probe_return="python:drop_gil__return", as_async=False, show_instant=True, duration_min_us=1, only_lock=True, t_min={}, t_max={}):
+    time_first = None
+
+    # dicts that map pid -> time
+    wants_take_gil = {}
+    wants_drop_gil = {}
+    has_gil = {}
+
+    parent_pid = None
+    # to avoid printing out the same msg over and over
+    ignored = set()
+    # keep track of various times
+    time_on_gil = defaultdict(int)
+    time_wait_gil = defaultdict(int)
+    jitter = 1e-3  # add 1 ns for proper sorting
+    for header in input:
+        try:
+            header = header.rstrip()
+            if verbose >= 2:
+                print(header)
+
+            # just ignore stack traces and seperators
+            if not header or header.split()[0].isdigit():
+                continue
+            # parse the header
+            comm, pid, cpu, time, event, *other = header.split()
+            pid = int(pid)
+            if parent_pid is None:  # lets assume the first event is from the parent process
+                parent_pid = pid
+            assert event[-1] == ':'
+            event = event[:-1]  # take off :
+            assert time[-1] == ':'
+            time = time[:-1]  # take off :
+            time = float(time[:-1]) * 1e6
+
+            # keeping track for statistics
+            t_min[pid] = min(time, t_min.get(pid, time))
+            t_max[pid] = max(time, t_max.get(pid, time))
+
+            # and proces it
+            if time_first is None:
+                time_first = time
+
+            if re.match(take_probe, event):
+                wants_take_gil[pid] = time
+                scope = "t"  # thread scope
+                yield header, {"pid": parent_pid, "tid": pid, "ts": time, "name": 'take', "ph": "i", "cat": "GIL state", 's': scope, 'cname': 'bad'}
+            elif re.match(take_probe_return, event):
+                if has_gil:
+                    for other_pid in has_gil:
+                        gap = time - has_gil[other_pid]
+                        # optimistic overlap would be if we take it from the time it wanted to drop
+                        # gap = time - wants_drop_gil[other_pid]
+                        # print(gap)
+                        if gap < 0: # this many us overlap is ok
+                            # I think it happens when a thread has dropped the GIL, but it has not returned yet
+                            # TODO: we should be able to correct the times
+                            tip = "(If running as giltracer, try passing --no-state-detect to reduce CPU load"
+                            print(f'Anomaly: PID {other_pid} already seems to have the GIL, {overlap} us overlap with {pid} {pid==parent_pid}) {tip}', file=sys.stderr)
+                            # keep this for debugging
+                            # yield header, {"pid": parent_pid, "tid": other_pid, "ts": has_gil[other_pid], "dur": overlap, "name": 'GIL overlap1', "ph": "X", "cat": "process state"}
+                            # yield header, {"pid": parent_pid, "tid": pid, "ts": has_gil[other_pid], "dur": overlap, "name": 'GIL overlap1', "ph": "X", "cat": "process state"}
+                            # yield header, {"pid": parent_pid, "tid": other_pid, "ts": wants_drop_gil[other_pid], "dur": overlap_relaxed, "name": 'GIL overlap2', "ph": "X", "cat": "process state"}
+                            # yield header, {"pid": parent_pid, "tid": pid, "ts": wants_drop_gil[other_pid], "dur": overlap_relaxed, "name": 'GIL overlap2', "ph": "X", "cat": "process state"}
+                has_gil[pid] = time
+                time_wait_gil[pid] += time - max(t_min[pid], wants_take_gil[pid])
+            elif re.match(drop_probe, event):
+                wants_drop_gil[pid] = time
+                scope = "t"  # thread scope
+                yield header, {"pid": parent_pid, "tid": pid, "ts": time, "name": 'drop', "ph": "i", "cat": "GIL state", 's': scope, 'cname': 'bad'}
+            elif re.match(drop_probe_return, event):
+                if pid not in has_gil:
+                    print(f'Anomaly: this PIDs drops the GIL: {pid}, but never took it (maybe we missed it?)', file=sys.stderr)
+                time_gil_take = has_gil.get(pid, time_first)
+                time_gil_drop = time
+                duration = time_gil_drop - time_gil_take
+                time_on_gil[pid] += duration
+                if pid in has_gil:
+                    del has_gil[pid]
+                if duration < duration_min_us:
+                    if verbose >= 2:
+                        print(f'Ignoring {duration}us duration GIL lock', file=sys.stderr)
+                    continue
+
+                args = {'duraction': f'{duration} us'}
+                if show_instant:
+                    # we do both tevent only after drop, so we can ignore 0 duraction event
+                    # TODO: 'flush' out takes without a drop (e.g. perf stopped before drop happned)
+                    name = "GIL-take"
+                    scope = "t"  # thread scope
+                    event = {"pid": parent_pid, "tid": f'{pid}', "ts": time_gil_take, "name": name, "ph": "i", "cat": "GIL state", 's': scope, 'cname': 'terrible'}
+                    yield header, event
+
+                    name = "GIL-drop"
+                    scope = "t"  # thread scope
+                    event = {"pid": parent_pid, "tid": f'{pid}', "ts": time_gil_drop, "name": name, "ph": "i", "cat": "GIL state", 's': scope, 'args': args, 'cname': 'good'}
+                    yield header, event
+
+                if as_async:
+                    begin, end = 'b', 'e'
+
+                else:
+                    begin, end = 'B', 'E'
+                event_id = int(time*1e3)
+                name = "GIL-flow"
+                common = {"pid": parent_pid if as_async else f'{parent_pid}-GIL', "tid": f'{pid}', 'cat': 'GIL state', 'args': args, 'id': event_id, 'cname': 'terrible'}
+                # we may have called take_gil earlier than we got it back
+                # sth like [called take [ take success [still dropping]]]
+                if not only_lock and pid in wants_take_gil:
+                    yield header, {"name": 'GIL(take)', "ph": begin, "ts": wants_take_gil[pid], **common, 'cname': 'bad'}
+                yield header, {"name": 'GIL',   "ph": begin, "ts": time_gil_take + jitter, **common}
+                if not only_lock:
+                    yield header, {"name": 'GIL(drop)',   "ph": begin, "ts": wants_drop_gil[pid], **common}
+                    yield header, {"name": 'GIL(drop)', "ph": end, "ts": time_gil_drop, **common}
+                yield header, {"name": 'GIL', "ph": end, "ts": time_gil_drop, **common}
+                if not only_lock and pid in wants_take_gil:
+                    yield header, {"name": 'GIL(take)', "ph": end, "ts": time_gil_drop, **common, 'cname': 'bad'}
+            else:
+                if event not in ignored:
+                    print(f'ignoring {event}', file=sys.stderr)
+                    ignored.add(event)
+        except:
+            print("error on line", header, file=sys.stderr)
+            raise
+    if verbose >= 1:
+        pids = ["PID"]
+        totals = ["total"]
+        wait = ["wait"]
+        table = []
+        for pid in t_min:
+            total = t_max[pid] - t_min[pid]
+            wait = time_wait_gil[pid]
+            on_gil = time_on_gil[pid]
+            no_gil = total - wait - on_gil
+            row = [pid, total, no_gil/total*100, on_gil/total*100, wait/total * 100]
+            if verbose >= 2:
+                row.extend([no_gil, on_gil, wait])
+            table.append(row)
+        headers = ['PID', 'total(us)', 'no gil%✅', 'has gil%❗', 'gil wait%❌']
+        if verbose:
+            headers.extend(['no gil(us)', 'has gil(us)', 'gil wait(us)'])
+        table = tabulate.tabulate(table, headers)
+        print()
+        print("Summary of threads:")
+        print()
+        print(table)
+        print()
+        print("High 'no gil' is good (✅), we like low 'has gil' (❗),\n and we don't want 'gil wait' (❌).")
+        print()
 
 
 def perf2trace(input, verbose=1, store_runing=False, store_sleeping=True, all_tracepoints=False):
@@ -214,7 +406,7 @@ def perf2trace(input, verbose=1, store_runing=False, store_sleeping=True, all_tr
         except BrokenPipeError:
             break
         except:
-            print("error on line", header, other)
+            print("error on line", header, other, file=sys.stderr)
             raise
 
 
