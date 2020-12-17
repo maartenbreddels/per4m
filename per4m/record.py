@@ -120,7 +120,7 @@ def main(argv=sys.argv):
         for module in args.import_.split(','):
             if verbose >= 2:
                 print(f'importing {module}')
-                __import__(module)
+            __import__(module)
 
     viztracer_path = args.output_viztracer
     ctx = contextlib.redirect_stdout(None) if verbose == 0 else empty_context()

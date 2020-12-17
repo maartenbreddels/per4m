@@ -8,6 +8,7 @@ optional arguments:
 
 positional arguments:
     giltracer           Run VizTracer and perf, and merge the result to see where the GIL is active.
+    offgil              Take stacktraces from VizTracer, and inject them in perf script output and print out stack traces with weights for stackcollapse.pl
     record              Run VizTracer and perf simultaneously. See also man perf record.
     script              Take stacktraces from VizTracer, and inject them in perf script output.
     perf2trace          Convert perf.data to TraceEvent JSON data.
@@ -27,6 +28,8 @@ def main(args=sys.argv):
         main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
     elif len(args) > 1 and args[1] == "giltracer":
         from .giltracer import main
+    elif len(args) > 1 and args[1] == "offgil":
+        from .offgil import main
         main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
     elif len(args) > 1 and args[1] == "record":
         from .record import main

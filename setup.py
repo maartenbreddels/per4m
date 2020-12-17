@@ -21,6 +21,7 @@ setup(
             'giltracer = per4m.giltracer:main',
             'perf-pyrecord = per4m.record:main',
             'perf-pyscript = per4m.script:main',
+            'offgil = per4m.offgil:main',
         ]
     }
 )

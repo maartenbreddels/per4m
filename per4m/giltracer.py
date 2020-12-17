@@ -48,7 +48,7 @@ def main(argv=sys.argv):
         for module in args.import_.split(','):
             if verbose >= 2:
                 print(f'importing {module}')
-                __import__(module)
+            __import__(module)
 
     with GilTracer(verbose=verbose) as gt:
         with viztracer.VizTracer(output_file="viztracer.json", verbose=verbose):

@@ -57,9 +57,20 @@ def main(argv=sys.argv):
 
 
     args = parser.parse_args(argv[1:])
+    verbose = args.verbose - args.quiet
+    store_runing = args.running
+    store_sleeping = args.sleeping
 
     trace_events = []
+    for header, tb, event in perf2trace(sys.stdin, verbose=verbose, store_runing=store_runing, store_sleeping=store_sleeping, all_tracepoints=args.all_tracepoints):
+        trace_events.append(event)
+    with open(args.output, 'w') as f:
+        json.dump({'traceEvents': trace_events}, f)
+    if verbose >= 1:
+        print(f"Wrote to {args.output}")
 
+
+def perf2trace(input, verbose=1, store_runing=False, store_sleeping=True, all_tracepoints=False):
     # useful for debugging, to have the pids a name
     pid_names = {}
     # pid_names = {872068: "main", 872070: "t1", 872071: "t2"}
@@ -67,15 +78,12 @@ def main(argv=sys.argv):
     last_run_time = {}
     last_sleep_time = {}
     last_sleep_stacktrace = {}
-    verbose = args.verbose - args.quiet
     time_first = None
-    store_runing = args.running
-    store_sleeping = args.sleeping
     parent_pid = {}  # maps pid/tid to the parent
     count = None
-    for header, stacktrace in read_events(sys.stdin):
+    for header, stacktrace in read_events(input):
         try:
-            if args.verbose >= 3:
+            if verbose >= 3:
                 print(header)
             pid = None
             parts = header.split()
@@ -94,8 +102,8 @@ def main(argv=sys.argv):
             def log(*args, time=time/1e6):
                 offset = time - time_first/1e6
                 print(f"{time:13.6f}[+{offset:5.4f}]", *args)
-            if args.all_tracepoints and tracepoint:
-                trace_events.append({'name': event, 'pid': parent_pid.get(pid, pid), 'tid': triggerpid, 'ts': time, 'ph': 'i', 's': 'g'})
+            if all_tracepoints and tracepoint:
+                yield header, stacktrace, {'name': event, 'pid': parent_pid.get(pid, pid), 'tid': triggerpid, 'ts': time, 'ph': 'i', 's': 'g'}
             first_line = False
             gil_event = None
             if event == "sched:sched_switch":
@@ -126,7 +134,7 @@ def main(argv=sys.argv):
                     log(f'{name} will switch to state={prev_state}, ran for {dur}')
                 if store_runing:
                     event = {"pid": parent_pid.get(pid, pid), "tid": pid, "ts": last_run_time[pid], "dur": dur, "name": 'R', "ph": "X", "cat": "process state"}
-                    trace_events.append(event)
+                    yield header, stacktrace, event
 
                 last_sleep_time[pid] = time
                 last_sleep_stacktrace[pid] = stacktrace
@@ -168,7 +176,8 @@ def main(argv=sys.argv):
                         name = 'S'
                         cname = 'bad'
                     event = {"pid": parent_pid.get(pid, pid), "tid": pid, "ts": last_sleep_time[pid], "dur": duration, "name": name, "ph": "X", "cat": "process state", 'cname': cname}
-                    trace_events.append(event)
+                    # A bit ugly, but here we lie about the stacktrace, we actually yield the one that caused us to sleep (for offgil.py)
+                    yield header, last_sleep_stacktrace[pid], event
                 last_run_time[pid] = time
                 del last_sleep_time[pid]
             elif event == "sched:sched_process_exec":
@@ -197,7 +206,7 @@ def main(argv=sys.argv):
                 parent_pid[child_pid] = pid
             elif not tracepoint:
                 event = {"pid": 'counters', "ts": time, "name": event, "ph": "C", "args": {event: count}}
-                trace_events.append(event)
+                yield header, stacktrace, event
             else:
                 if verbose >= 2:
                     print("SKIP", header)
@@ -207,11 +216,6 @@ def main(argv=sys.argv):
         except:
             print("error on line", header, other)
             raise
-            
-    with open(args.output, 'w') as f:
-        json.dump({'traceEvents': trace_events}, f)
-    if verbose >= 1:
-        print(f"Wrote to {args.output}")
 
 
 if __name__ == '__main__':
