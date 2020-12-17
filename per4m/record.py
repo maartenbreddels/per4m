@@ -34,6 +34,7 @@ class PerfRecord:
 
     def __enter__(self):
         self.start()
+        return self
 
     def start(self):
         pid = os.getpid()
