@@ -214,7 +214,7 @@ We see that NumPy has trouble returning to Python land because the main thread h
 
 First, load the magics
 ```
-%load_ext per4m.cellmagic
+%load_ext per4m
 ```
 
 Run a cell with the `%%giltracer` cell magic.

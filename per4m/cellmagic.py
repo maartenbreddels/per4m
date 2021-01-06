@@ -32,7 +32,7 @@ class GilTraceMagic(Magics):
         builder.save(output_file=out_path)
         
         download = HTML(f'''<a href="{out_path}" download>Download {out_path}</a>''')
-        view = HTML(f'''<a href="{out_path}" target="_blank" rel=”noopener noreferrer”>Open {out_path} in new tab</a> (might not work due to security issue)''')
+        view = HTML(f'''<a href="{out_path}" target="_blank" rel="noopener noreferrer">Open {out_path} in new tab</a> (might not work due to security issue)''')
         display(download, view)
 
 def load_ipython_extension(ipython):
