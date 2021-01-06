@@ -133,15 +133,15 @@ N = 1024*1024*32
 M = 4
 x = np.arange(N, dtype='f8')
 
-def run():
+def some_numpy_computation():
     total = 0
     for i in range(M):
         total += x.sum()
     return total
 
 
-thread1 = threading.Thread(target=run)
-thread2 = threading.Thread(target=run)
+thread1 = threading.Thread(target=some_numpy_computation)
+thread2 = threading.Thread(target=some_numpy_computation)
 
 def main(args=None):
     thread1.start()
