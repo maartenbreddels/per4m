@@ -366,12 +366,12 @@ def perf2trace(input, verbose=1, store_runing=False, store_sleeping=True, all_tr
                     # q
                     last_run_time[pid] = time
                     continue
-                recover_from_gil = takes_gil(last_sleep_stacktrace[pid])
-                duration = time  - last_sleep_time[pid]
+                recover_from_gil = takes_gil(last_sleep_stacktrace[pid]) if last_sleep_stacktrace[pid] else False
+                duration = time - last_sleep_time[pid]
                 if verbose >= 2:
                     name = pid_names.get(pid, pid)
                     log(f'Waking up {name}', '(recovering from GIL)' if recover_from_gil else '', f', slept for {duration} msec')
-                if verbose >= 3:
+                if verbose >= 3 and last_sleep_stacktrace[pid]:
                     print("Stack trace when we went to sleep:\n\t", "\t".join(last_sleep_stacktrace[pid]))
                 if store_sleeping:
                     if recover_from_gil:
