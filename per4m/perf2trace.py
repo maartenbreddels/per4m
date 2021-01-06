@@ -3,6 +3,7 @@ from collections import defaultdict
 import json
 import re
 import sys
+import math
 
 import tabulate
 
@@ -256,20 +257,24 @@ def gil2trace(input, verbose=1, take_probe="python:take_gil$", take_probe_return
             wait = time_wait_gil[pid]
             on_gil = time_on_gil[pid]
             no_gil = total - wait - on_gil
-            row = [pid, total, no_gil/total*100, on_gil/total*100, wait/total * 100]
+            row = [pid if pid != parent_pid else f'{pid}*', total]
+            if total == 0:
+                 row += [math.inf, math.inf, math.inf]
+            else:
+                row += [no_gil/total*100, on_gil/total*100, wait/total * 100]
             if verbose >= 2:
                 row.extend([no_gil, on_gil, wait])
             table.append(row)
         headers = ['PID', 'total(us)', 'no gil%✅', 'has gil%❗', 'gil wait%❌']
         if verbose:
             headers.extend(['no gil(us)', 'has gil(us)', 'gil wait(us)'])
-        table = tabulate.tabulate(table, headers)
+        table = tabulate.tabulate(table, headers, floatfmt=".1f")
         print()
         print("Summary of threads:")
         print()
         print(table)
         print()
-        print("High 'no gil' is good (✅), we like low 'has gil' (❗),\n and we don't want 'gil wait' (❌).")
+        print("High 'no gil' is good (✅), we like low 'has gil' (❗),\n and we don't want 'gil wait' (❌). (* indicates main thread)")
         print()
 
 
