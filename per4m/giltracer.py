@@ -50,10 +50,11 @@ class PerfRecordGIL(PerfRecord):
         if os.system(cmd) != 0:
             raise OSError(f'Failed to run perf or per4m perf2trace, command:\n$ {cmd}')
 
+
 def main(argv=sys.argv):
     parser = argparse.ArgumentParser(argv[0],
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        usage=usage)
+                                     formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     usage=usage)
     parser.add_argument('--module', '-m')
     parser.add_argument('--import', dest="import_", help="Comma seperated list of modules to import before tracing (cleans up tracing output)")
     parser.add_argument('--verbose', '-v', action='count', default=1)

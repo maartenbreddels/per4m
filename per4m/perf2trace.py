@@ -1,5 +1,4 @@
 import argparse
-import argparse
 from collections import defaultdict
 import json
 import re
@@ -8,6 +7,7 @@ import sys
 import tabulate
 
 from .perfutils import read_events
+
 
 def parse_values(parts, **types):
     values = {}
@@ -58,8 +58,8 @@ $ viztracer --combine example1.json example1gil.json -o example1.html
 
 def main(argv=sys.argv):
     parser = argparse.ArgumentParser(argv[0],
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        usage=usage)
+                                     formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     usage=usage)
     parser.add_argument('--verbose', '-v', action='count', default=1)
     parser.add_argument('--quiet', '-q', action='count', default=0)
     parser.add_argument('--sleeping', help="store sleeping phase (default: %(default)s)", default=True, action='store_true')
