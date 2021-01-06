@@ -3,6 +3,9 @@ def read_events(input):
     stacktrace = []
     header = None
     for line in input:
+        if first_line and line and line[0].isspace():
+            yield line, None
+            continue
         line = line.strip()
         if first_line:
             header = line

@@ -136,15 +136,12 @@ def gil2trace(input, verbose=1, take_probe="python:take_gil$", take_probe_return
     time_on_gil = defaultdict(int)
     time_wait_gil = defaultdict(int)
     jitter = 1e-3  # add 1 ns for proper sorting
-    for header in input:
+    for header, _ in read_events(input):
         try:
             header = header.rstrip()
             if verbose >= 2:
                 print(header)
 
-            # just ignore stack traces and seperators
-            if not header or header.split()[0].isdigit():
-                continue
             # parse the header
             comm, pid, cpu, time, event, *other = header.split()
             pid = int(pid)
@@ -422,7 +419,7 @@ def perf2trace(input, verbose=1, store_runing=False, store_sleeping=True, all_tr
         except BrokenPipeError:
             break
         except:
-            print("error on line", header, other, file=sys.stderr)
+            print("error on line", repr(header), stacktrace, file=sys.stderr)
             raise
 
 
