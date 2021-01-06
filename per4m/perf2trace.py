@@ -72,7 +72,7 @@ def main(argv=sys.argv):
     parser.add_argument('--no-only-lock', dest="as_async", action='store_false')
     parser.add_argument('--all-tracepoints', help="store all tracepoints phase (default: %(default)s)", default=False, action='store_true')
 
-    # parser.add_argument('--input', '-i', help="Optional VizTracer input for filtering and gil load calculations")
+    parser.add_argument('--input', '-i', help="Optional VizTracer input for filtering PIDs and gil load calculations")
 
     parser.add_argument('--output', '-o', dest="output", default='perf.json', help="Output filename (default %(default)s)")
     parser.add_argument("type", help="Type of conversion to do", choices=['sched', 'gil'])
@@ -82,6 +82,15 @@ def main(argv=sys.argv):
     verbose = args.verbose - args.quiet
     store_runing = args.running
     store_sleeping = args.sleeping
+
+    pids = set()
+    if args.input:
+        with open(args.input, "r") as f:
+            json_data = json.load(f)
+        # find all pids (or tids)
+        for event in json_data['traceEvents']:
+            pids.add(event['pid'])
+            pids.add(event['tid'])
 
     trace_events = []
     if args.type == "sched":
@@ -99,7 +108,7 @@ def main(argv=sys.argv):
         #             t_min[pid] = min(t_min.get(pid, ts), ts)
         #             t_max[pid] = max(t_max.get(pid, ts), ts)
 
-        for header, event in gil2trace(sys.stdin, verbose=verbose, as_async=args.as_async, only_lock=args.only_lock):
+        for header, event in gil2trace(sys.stdin, verbose=verbose, as_async=args.as_async, only_lock=args.only_lock, pids=pids):
             if verbose >= 3:
                 print(event)
             trace_events.append(event)
@@ -111,7 +120,7 @@ def main(argv=sys.argv):
         print(f"Wrote to {args.output}")
 
 
-def gil2trace(input, verbose=1, take_probe="python:take_gil(_\d)?$", take_probe_return="python:take_gil__return", drop_probe="python:drop_gil(_\d)?$", drop_probe_return="python:drop_gil__return", as_async=False, show_instant=True, duration_min_us=1, only_lock=True, t_min={}, t_max={}):
+def gil2trace(input, verbose=1, take_probe="python:take_gil$", take_probe_return="python:take_gil__return", drop_probe="python:drop_gil$", drop_probe_return="python:drop_gil__return", as_async=False, show_instant=True, duration_min_us=1, only_lock=True, t_min={}, t_max={}, pids=set()):
     time_first = None
 
     # dicts that map pid -> time
@@ -138,6 +147,8 @@ def gil2trace(input, verbose=1, take_probe="python:take_gil(_\d)?$", take_probe_
             # parse the header
             comm, pid, cpu, time, event, *other = header.split()
             pid = int(pid)
+            if pids and pid not in pids:  # optionally filter
+                continue
             if parent_pid is None:  # lets assume the first event is from the parent process
                 parent_pid = pid
             assert event[-1] == ':'
