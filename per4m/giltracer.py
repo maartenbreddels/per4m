@@ -25,7 +25,7 @@ class PerfRecordSched(PerfRecord):
 
     def post_process(self, *args):
         verbose = '-q ' + '-v ' * self.verbose
-        cmd = f"perf script -i {self.output} --no-inline | per4m perf2trace sched -o {self.trace_output} {verbose}"
+        cmd = f"perf script -i {self.output} --no-inline --ns | per4m perf2trace sched -o {self.trace_output} {verbose}"
         if self.verbose >= 1:
             print(cmd)
         if os.system(cmd) != 0:
