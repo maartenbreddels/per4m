@@ -257,18 +257,22 @@ def gil2trace(input, verbose=1, take_probe="python:take_gil$", take_probe_return
                     begin, end = 'B', 'E'
                 event_id = int(time*1e3)
                 name = "GIL-flow"
-                common = {"pid": parent_pid if as_async else f'{parent_pid}-GIL', "tid": f'{pid}', 'cat': 'GIL state', 'args': args, 'id': event_id, 'cname': 'terrible'}
+                common = {"pid": parent_pid if as_async else f'{parent_pid}-GIL', "tid": f'{pid}', 'cat': 'GIL state', 'args': args, 'id': event_id, 'cname': 'bad'}
                 # we may have called take_gil earlier than we got it back
                 # sth like [called take [ take success [still dropping]]]
+                yield header, {"name": 'GIL', "ph": begin, "ts": wants_take_gil[pid], **common, 'cname': 'bad'}
                 if not only_lock and pid in wants_take_gil:
-                    yield header, {"name": 'GIL(take)', "ph": begin, "ts": wants_take_gil[pid], **common, 'cname': 'bad'}
-                yield header, {"name": 'GIL',   "ph": begin, "ts": time_gil_take + jitter, **common}
+                    yield header, {"name": 'take_gil', "ph": begin, "ts": wants_take_gil[pid], **common}
+                    yield header, {"name": 'take_gil', "ph": end, "ts": time_gil_take, **common}
+                assert time_gil_take >= wants_take_gil[pid], f"{time_gil_take} >= {wants_take_gil[pid]}"
+                yield header, {"name": 'LOCK',   "ph": begin, "ts": time_gil_take, **common, 'cname': 'terrible'}
+                yield header, {"name": 'LOCK', "ph": end, "ts": wants_drop_gil[pid], **common, 'cname': 'terrible'}
                 if not only_lock:
-                    yield header, {"name": 'GIL(drop)',   "ph": begin, "ts": wants_drop_gil[pid], **common}
-                    yield header, {"name": 'GIL(drop)', "ph": end, "ts": time_gil_drop, **common}
-                yield header, {"name": 'GIL', "ph": end, "ts": time_gil_drop, **common}
-                if not only_lock and pid in wants_take_gil:
-                    yield header, {"name": 'GIL(take)', "ph": end, "ts": time_gil_drop, **common, 'cname': 'bad'}
+                    yield header, {"name": 'drop_gil',   "ph": begin, "ts": wants_drop_gil[pid], **common}
+                    yield header, {"name": 'drop_gil', "ph": end, "ts": time_gil_drop, **common}
+                # if not only_lock and pid in wants_take_gil:
+                yield header, {"name": 'GIL', "ph": end, "ts": time_gil_drop, **common, 'cname': 'bad'}
+                assert time_gil_drop >= wants_drop_gil[pid]
             else:
                 if event not in ignored:
                     print(f'ignoring {event}', file=sys.stderr)
