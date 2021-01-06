@@ -35,7 +35,7 @@ class PerfRecordSched(PerfRecord):
 class PerfRecordGIL(PerfRecord):
     def __init__(self, output='perf-gil.data', trace_output='giltracer.json', viztracer_input="viztracer.json", verbose=1):
         # TODO: check output of perf probe --list="python:*gil*"  to see if probes are set
-        super().__init__(output=output, verbose=verbose, args=["-e 'python:*gil*'"], stacktrace=False)
+        super().__init__(output=output, verbose=verbose, args=["-e 'python:*gil*'", "-e pytrace:function_entry", "-e pytrace:function_return"], stacktrace=False)
         # this is used to filter the giltracer data
         self.viztracer_input = viztracer_input
         self.trace_output = trace_output

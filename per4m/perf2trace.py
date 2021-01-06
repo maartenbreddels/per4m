@@ -128,6 +128,10 @@ def gil2trace(input, verbose=1, take_probe="python:take_gil$", take_probe_return
     wants_take_gil = {}
     wants_drop_gil = {}
     has_gil = {}
+    has_gil_stack = {}
+
+    pystack = defaultdict(list)
+    wait_for_stack = defaultdict(list)  # pid -> call
 
     parent_pid = None
     # to avoid printing out the same msg over and over
@@ -163,10 +167,36 @@ def gil2trace(input, verbose=1, take_probe="python:take_gil$", take_probe_return
             if time_first is None:
                 time_first = time
 
-            if re.match(take_probe, event):
+            function_entry_probe = 'pytrace:function_entry'
+            function_return_probe = 'pytrace:function_return'
+            if re.match(function_entry_probe, event):
+                values = parse_values(other, l=int, what=int)
+                call = (values['filename'], values['funcname'],
+                        values['l'], values['what'])
+                pystack[pid].append(call)
+                depth = len(pystack[pid])
+                if verbose >= 3:
+                    print(pid, "  " * depth, "→", call)
+            elif re.match(function_return_probe, event):
+                try:
+                    call = pystack[pid].pop()
+                    depth = len(pystack[pid])
+                    if verbose >= 3:
+                        print(pid, "  " * depth, "←", call)
+                except:
+                    pass  # we may have missed some calls
+            elif re.match(take_probe, event):
                 wants_take_gil[pid] = time
                 scope = "t"  # thread scope
                 yield header, {"pid": parent_pid, "tid": pid, "ts": time, "name": 'take', "ph": "i", "cat": "GIL state", 's': scope, 'cname': 'bad'}
+                if has_gil:
+                    for blocking_pid in has_gil:
+                        if pystack[blocking_pid]:
+                            call = pystack[blocking_pid][-1]
+                            wait_for_stack[pid].append((blocking_pid, call, None))
+                        else:
+                            call = ('cpython', 'cpython', -1)
+                            wait_for_stack[pid].append((blocking_pid, call, None))
             elif re.match(take_probe_return, event):
                 if has_gil:
                     for other_pid in has_gil:
@@ -185,7 +215,9 @@ def gil2trace(input, verbose=1, take_probe="python:take_gil$", take_probe_return
                             # yield header, {"pid": parent_pid, "tid": other_pid, "ts": wants_drop_gil[other_pid], "dur": overlap_relaxed, "name": 'GIL overlap2', "ph": "X", "cat": "process state"}
                             # yield header, {"pid": parent_pid, "tid": pid, "ts": wants_drop_gil[other_pid], "dur": overlap_relaxed, "name": 'GIL overlap2', "ph": "X", "cat": "process state"}
                 has_gil[pid] = time
-                time_wait_gil[pid] += time - max(t_min[pid], wants_take_gil[pid])
+                has_gil_stack[pid] = pystack[pid].copy()
+                time_wait = time - max(t_min[pid], wants_take_gil[pid])
+                time_wait_gil[pid] += time_wait
             elif re.match(drop_probe, event):
                 wants_drop_gil[pid] = time
                 scope = "t"  # thread scope
