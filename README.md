@@ -4,7 +4,7 @@ This project aims to (at least demonstrate) how to combine the Linux perf tool (
 
 # Installation
 ## Python side
-From PyPy
+From PyPI
 
     $ pip install per4m
 
