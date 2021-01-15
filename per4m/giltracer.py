@@ -106,13 +106,13 @@ def main(argv=sys.argv):
         if perf2:
             perf2.post_process()
 
-    files = ['viztracer.json']
-    if perf1:
-        files.append('schedtracer.json')
-    if perf2:
-        files.append('giltracer.json')
-    builder = ReportBuilder(files, verbose=verbose)
-    builder.save(output_file=args.output)
+        files = ['viztracer.json']
+        if perf1:
+            files.append('schedtracer.json')
+        if perf2:
+            files.append('giltracer.json')
+        builder = ReportBuilder(files, verbose=verbose)
+        builder.save(output_file=args.output)
 
 
 if __name__ == '__main__':
