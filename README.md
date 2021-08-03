@@ -112,7 +112,7 @@ The dark red `S(GIL)` blocks indicate the threads/processes are in a waiting sta
 
 Although it is possible to do both:
 ```
-$ giltracer --no-gil-detect --state-detect -m per4m.example2
+$ giltracer --state-detect -m per4m.example2
 ```
 
 ![image](https://user-images.githubusercontent.com/1765949/102507696-d8acdc00-4084-11eb-8fed-0b75c88906c4.png)

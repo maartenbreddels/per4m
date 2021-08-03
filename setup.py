@@ -18,6 +18,7 @@ setup(
     license=license,
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
+    install_requires=['tabulate'],
     ext_modules=[Extension("per4m.pytrace", ["per4m/pytrace.cpp", "per4m/probes.cpp"],
                           extra_compile_args=extra_compile_args)],
     entry_points={
