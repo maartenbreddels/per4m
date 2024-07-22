@@ -16,6 +16,7 @@ setup(
     url=url,
     packages=['per4m'],
     license=license,
+    license_files=['LICENSE.txt'],
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     install_requires=['tabulate'],
